@@ -69,8 +69,38 @@ class CNN(nn.Module):
         x = self.fc2(x)
 
         return x
+    
+class ImprovedCNN(nn.Module):
+    def __init__(self):
+        super(ImprovedCNN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)   # Stalbizes and accelerates training
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.pool = nn.MaxPool2d(2, 2)  # halves spatial dimensions
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.dropout_conv = nn.Dropout(0.25)
+        
+        # After two pool layers, input 28x28 -> 7x7 spatial size
+        self.pool2 = nn.MaxPool2d(2, 2)     # gradual spatial reduction
+        self.dropout_fc = nn.Dropout(0.5)
+        self.fc1 = nn.Linear(128 * 7 * 7, 256)
+        self.fc2 = nn.Linear(256, 10)
 
-# Transform(data preprocessing): convert images to tensor and normalize pixel values to [0,1]
+    def forward(self, x):
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.pool(F.relu(self.bn2(self.conv2(x))))
+        x = self.dropout_conv(x)
+        x = self.pool2(F.relu(self.bn3(self.conv3(x))))
+        x = x.view(-1, 128 * 7 * 7)
+        x = F.relu(self.fc1(x))
+        x = self.dropout_fc(x)
+        x = self.fc2(x)
+        
+        return x
+
+# Transform(data preprocessing)
 transform = transforms.Normalize((0.1307,), (0.3081,))
 
 train_dataset = CSVImageDataset('data/train.csv', transform=transform, has_labels=True)
@@ -80,7 +110,7 @@ test_dataset = CSVImageDataset('data/test.csv', transform=transform, has_labels=
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
     
-model = CNN()
+model = ImprovedCNN()
 criterion = nn.CrossEntropyLoss()   # is standard for multi-class classification, combines softmax + log loss
 optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizer adapts learning rates per parameter; popular and efficient
 
